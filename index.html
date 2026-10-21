@@ -8,12 +8,22 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        :root {
+            --hud-height: 64px;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
         body {
             font-family: 'JetBrains Mono', monospace;
             background-color: #0f172a;
             color: #e2e8f0;
             overflow: hidden;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
         .bg-grid {
             background-size: 40px 40px;
@@ -185,6 +195,117 @@
         .skin-item:hover{
             border-color:#60a5fa;
         }
+
+        @media (max-width: 768px) {
+            body {
+                overflow: auto;
+                min-height: 100dvh;
+            }
+            header {
+                height: auto !important;
+                padding: 10px 12px !important;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            header > div:first-child {
+                width: 100%;
+                justify-content: center;
+            }
+            header > div:nth-child(2) {
+                width: 100%;
+                justify-content: center;
+                gap: 8px !important;
+                padding: 8px 10px !important;
+                overflow-x: auto;
+                flex-wrap: nowrap;
+            }
+            .text-[10px] {
+                font-size: 8px !important;
+            }
+            #scoreDisplay, #wpmDisplay, #levelDisplay, #comboDisplay, #timeDisplay, #hpDisplay {
+                font-size: 1rem !important;
+            }
+            #hpDisplay {
+                letter-spacing: 1px;
+            }
+            #buffDisplay {
+                font-size: 9px !important;
+                white-space: nowrap;
+            }
+            main {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                padding-bottom: 16px !important;
+            }
+            .road-container {
+                margin-bottom: 12px !important;
+            }
+            .road {
+                height: 170px !important;
+                width: 100% !important;
+            }
+            #police, #thief {
+                font-size: 3.5rem !important;
+            }
+            .word-bubble {
+                min-width: 110px !important;
+                padding: 8px 10px !important;
+                bottom: 110% !important;
+            }
+            #targetWordText {
+                font-size: 1.2rem !important;
+            }
+            #wordLengthHint {
+                font-size: 10px !important;
+            }
+            #distanceText {
+                font-size: 10px !important;
+            }
+            .countdown-text {
+                font-size: 72px;
+            }
+            .glass-panel {
+                max-width: calc(100vw - 20px);
+            }
+            #modalOverlay .glass-panel {
+                padding: 18px 16px !important;
+                border-radius: 18px !important;
+            }
+            #modalTitle {
+                font-size: 2rem !important;
+            }
+            #modalDesc {
+                font-size: 0.8rem !important;
+                line-height: 1.5 !important;
+            }
+            #finalStats {
+                gap: 8px !important;
+                padding: 10px !important;
+            }
+            #finalStats > div {
+                padding: 8px !important;
+            }
+            #finalStats .text-2xl {
+                font-size: 1.15rem !important;
+            }
+            #startBtn {
+                font-size: 0.95rem !important;
+                padding: 12px 14px !important;
+            }
+            #settingsPanel > div, #skinPanel > div {
+                width: min(92vw, 380px) !important;
+                padding: 18px 14px !important;
+            }
+            .skin-item {
+                padding: 8px 6px !important;
+            }
+            .skin-item .text-4xl {
+                font-size: 2rem !important;
+            }
+            .skin-item .text-xs {
+                font-size: 9px !important;
+            }
+        }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col relative">
@@ -299,7 +420,7 @@
                     <div class="text-2xl text-green-400 font-bold" id="finalWpm">0</div>
                 </div>
                 <div class="bg-slate-900/50 p-3 rounded">
-                    <div class="text-xs text-slate-400 uppercase">准确性</div>
+                    <div class="text-xs text-slate-400 uppercase">准��性</div>
                     <div class="text-2xl text-blue-400 font-bold" id="finalAcc">0%</div>
                 </div>
                 <div class="bg-slate-900/50 p-3 rounded">
@@ -399,7 +520,7 @@
             },
             medium: {
                 en: ['police', 'thief', 'chase', 'speed', 'drive', 'street', 'light', 'brake', 'engine', 'wheel', 'radio', 'signal', 'patrol', 'siren', 'arrest', 'crime', 'justice', 'guard', 'protect', 'serve','escape','pursuit','highway','ticket','sirens'],
-                cn: ['紧急出动','监控录像','红绿灯','巡逻车辆','犯罪分子','高速公路','对讲机','嫌疑人','拦停检查','证据收集']
+                cn: ['紧急出动','监控录像','红绿灯','巡逻车辆','犯罪分子','高速���路','对讲机','嫌疑人','拦停检查','证据收集']
             },
             hard: {
                 en: ['acceleration', 'surveillance', 'intersection', 'jurisdiction', 'apprehension', 'investigation', 'motorcycle', 'helicopter', 'undercover', 'highway', 'enforcement', 'department', 'emergency', 'dispatch', 'violation','circumstance','authorities','warrant','testimony'],
@@ -560,6 +681,11 @@
 
                 window.addEventListener('keydown', this.handleInput);
                 this.mobileInput.addEventListener('input', this.mobileInputHandler);
+                this.mobileInput.addEventListener('blur', () => {
+                    if (this.state === 'PLAYING') {
+                        setTimeout(() => this.mobileInput.focus(), 100);
+                    }
+                });
                 const diffSel = document.getElementById('difficultySelect');
                 diffSel.value = this.difficulty;
                 diffSel.addEventListener('change', (e) => {
@@ -575,6 +701,9 @@
                 document.body.addEventListener('click',()=>{
                     if(this.state==="PLAYING" || this.state === "COUNTDOWN") this.mobileInput.focus();
                 });
+                document.addEventListener('touchstart', () => {
+                    if(this.state==="PLAYING" || this.state === "COUNTDOWN") this.mobileInput.focus();
+                }, { passive: true });
                 this.applySkin();
             }
             applySkin(){
