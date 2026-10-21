@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极速追缉：键盘神探</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            overflow: hidden;
+            user-select: none;
+        }
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+            animation: gridMove 2s linear infinite;
+        }
+        @keyframes gridMove {
+            from { background-position: 0 0; }
+            to { background-position: 0 40px; }
+        }
+        .road-container {
+            perspective: 800px;
+            transform-style: preserve-3d;
+        }
+        .road {
+            background: linear-gradient(90deg, #1e293b 0%, #334155 15%, #475569 50%, #334155 85%, #1e293b 100%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            position: relative;
+            overflow: hidden;
+            border-bottom: 4px solid #ef4444;
+        }
+        .road::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: repeating-linear-gradient(90deg, #fbbf24 0, #fbbf24 30px, transparent 30px, transparent 60px);
+            transform: translateY(-50%);
+            animation: roadLineMove 0.5s linear infinite;
+        }
+        @keyframes roadLineMove {
+            from { background-position: 0 0; }
+            to { background-position: -60px 0; }
+        }
+        .character {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6));
+            z-index: 20;
+        }
+        .police-car {
+            animation: siren 0.8s infinite alternate;
+        }
+        @keyframes siren {
+            0% { filter: drop-shadow(-5px 0 15px rgba(59, 130, 246, 0.6)); }
+            100% { filter: drop-shadow(5px 0 15px rgba(239, 68, 68, 0.6)); }
+        }
+        .thief-car {
+             animation: bump 0.5s infinite alternate;
+        }
+        @keyframes bump {
+            from { transform: translateY(0); }
+            to { transform: translateY(-2px); }
+        }
+        .word-bubble {
+            backdrop-filter: blur(8px);
+            transition: all 0.2s;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+        }
+        .word-bubble.active {
+            border-color: #34d399;
+            box-shadow: 0 0 20px rgba(52, 211, 153, 0.4);
+            transform: translateX(-50%) scale(1.1);
+            z-index: 50;
+        }
+        .char-correct { color: #34d399; text-shadow: 0 0 8px #34d399; font-weight: bold; }
+        .char-wrong { color: #ef4444; text-decoration: line-through; opacity: 0.7; }
+        .char-pending { color: #94a3b8; }
+        .char-cursor {
+            color: #fb923c;
+            text-shadow: 0 0 10px #fb923c;
+            border-right:3px solid #fb923c;
+            animation: blink 0.6s infinite;
+        }
+        @keyframes blink{
+            0%,100%{border-color:#fb923c;}
+            50%{border-color:transparent;}
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .progress-bar-fill {
+            transition: width 0.1s linear, background-color 0.3s;
+        }
+        #particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+        }
+        @keyframes comboPulse {
+            0%{transform:scale(1);}
+            50%{transform:scale(1.2);}
+            100%{transform:scale(1);}
+        }
+        .combo-pulse{
+            animation: comboPulse 0.25s ease;
+            color:#facc15;
+            text-shadow:0 0 10px #facc15;
+        }
+        #mobileInput{
+            opacity:0;
+            position:absolute;
+            width:1px;
+            height:1px;
+            z-index:-1;
+        }
+        .countdown-text{
+            position:absolute;
+            top:50%;
+            left:50%;
+            transform:translate(-50%,-50%);
+            font-size:120px;
+            font-weight:bold;
+            color:white;
+            text-shadow:0 0 30px #3b82f6;
+            z-index:100;
+        }
+        .road-item{
+            position:absolute;
+            bottom:12px;
+            font-size:40px;
+            animation:itemFloat 1s ease-in-out infinite;
+            filter:drop-shadow(0 0 12px #22d3ee);
+            z-index:18;
+            pointer-events:none;
+        }
+        @keyframes itemFloat{
+            0%,100%{transform:translateY(0);}
+            50%{transform:translateY(-6px);}
+        }
+        .shield-aura{
+            box-shadow:0 0 24px 8px rgba(56,189,248,0.6);
+            border-radius:50%;
+        }
+        .invisible-mode{
+            opacity:0.3;
+        }
+        .boost-glow{
+            filter:drop-shadow(0 0 20px #facc15) !important;
+        }
+        .thief-slow{
+            filter:drop-shadow(0 0 14px #a855f7);
+        }
+        .skin-item{
+            border:2px solid #334155;
+            border-radius:12px;
+            padding:10px;
+            cursor:pointer;
+            transition:0.2s;
+        }
+        .skin-item.active{
+            border-color:#3b82f6;
+            background:rgba(59,130,246,0.2);
+        }
+        .skin-item:hover{
+            border-color:#60a5fa;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col relative">
+    <input id="mobileInput" autocomplete="off">
+    <div class="absolute inset-0 bg-grid z-0 pointer-events-none"></div>
+    <header class="relative z-30 p-4 flex justify-between items-center glass-panel border-b border-slate-700 h-16">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/50">
+                <i class="fas fa-shield-alt text-white text-xl"></i>
+            </div>
+            <div>
+                <div class="text-xl font-bold text-white tracking-wide">POLICE TYPE</div>
+                <div class="text-xs text-blue-400 font-mono">SYSTEM ONLINE</div>
+            </div>
+        </div>
+        <div class="flex gap-6 text-lg font-mono bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700">
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">Score</span>
+                <span id="scoreDisplay" class="text-yellow-400 font-bold text-xl">0</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">WPM</span>
+                <span id="wpmDisplay" class="text-green-400 font-bold text-xl">0</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">Lv</span>
+                <span id="levelDisplay" class="text-purple-400 font-bold text-xl">1</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">Combo</span>
+                <span id="comboDisplay" class="text-amber-300 font-bold text-xl">0</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">HP</span>
+                <span id="hpDisplay" class="text-red-400 font-bold text-xl">❤️❤️❤️❤️❤️</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[65px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">BUFF</span>
+                <span id="buffDisplay" class="text-cyan-400 font-bold text-xs">--</span>
+            </div>
+            <div class="w-px bg-slate-600"></div>
+            <div class="flex flex-col items-center min-w-[50px]">
+                <span class="text-[10px] text-slate-400 uppercase tracking-widest">Time</span>
+                <span id="timeDisplay" class="text-cyan-400 font-bold text-xl">00:00</span>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="game.togglePause()" class="w-10 h-10 rounded-lg hover:bg-slate-700 transition flex items-center justify-center text-slate-300 border border-slate-600" title="暂停 (Esc)">
+                <i class="fas fa-pause"></i>
+            </button>
+            <button onclick="ui.showSkinSelect()" class="w-10 h-10 rounded-lg hover:bg-slate-700 transition flex items-center justify-center text-slate-300 border border-slate-600" title="更换皮肤">
+                <i class="fas fa-car"></i>
+            </button>
+            <button onclick="ui.showSettings()" class="w-10 h-10 rounded-lg hover:bg-slate-700 transition flex items-center justify-center text-slate-300 border border-slate-600" title="设置">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+    <main class="flex-1 relative z-10 flex flex-col justify-end pb-10 px-4 md:px-20 overflow-hidden">
+        <div class="absolute top-6 left-1/2 transform -translate-x-1/2 w-full max-w-lg z-20">
+            <div class="flex justify-between text-xs font-bold text-slate-400 mb-2 px-1">
+                <span class="text-blue-400"><i class="fas fa-car-side mr-1"></i>POLICE</span>
+                <span id="distanceText" class="text-white bg-slate-800 px-2 py-0.5 rounded">DIST: 50m</span>
+                <span class="text-red-400">THIEF<i class="fas fa-car-side ml-1"></i></span>
+            </div>
+            <div class="h-3 bg-slate-800 rounded-full overflow-hidden relative border border-slate-600 shadow-inner">
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-900/50 via-purple-900/50 to-red-900/50"></div>
+                <div id="distanceBar" class="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 w-[50%] progress-bar-fill relative">
+                    <div class="absolute right-0 top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white]"></div>
+                </div>
+            </div>
+        </div>
+        <div class="road-container w-full h-64 md:h-80 relative flex items-end justify-center mb-8">
+            <div id="roadWrap" class="road w-full md:w-4/5 h-40 md:h-48 rounded-xl relative mx-auto border-x-4 border-slate-600">
+                <div id="police" class="character police-car absolute bottom-6 left-[10%] text-6xl md:text-8xl">
+                    🚓
+                </div>
+                <div id="thief" class="character thief-car absolute bottom-6 right-[10%] text-6xl md:text-8xl">
+                    🚗
+                    <div id="targetWordContainer" class="word-bubble bg-slate-900/95 border-2 border-slate-500 px-5 py-2 rounded-xl shadow-2xl min-w-[140px] text-center mb-4">
+                        <span id="targetWordText" class="text-2xl md:text-3xl font-bold tracking-widest font-mono"></span>
+                        <div id="wordLengthHint" class="text-xs text-slate-400 mt-1"></div>
+                    </div>
+                </div>
+                <div id="itemContainer"></div>
+            </div>
+        </div>
+        <canvas id="particles"></canvas>
+        <div id="countdownEl" class="countdown-text hidden"></div>
+        <div class="absolute bottom-2 left-0 w-full text-center pointer-events-none opacity-40">
+            <p class="text-xs text-slate-500 font-mono">PRESS KEYS TO ACCELERATE // ESC TO PAUSE | BACKSPACE undo</p>
+        </div>
+    </main>
+    <div id="modalOverlay" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center transition-opacity duration-300">
+        <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center shadow-2xl border border-slate-600 transform transition-all scale-100 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500"></div>
+            <div id="modalIcon" class="text-7xl mb-6 drop-shadow-lg animate-bounce">🚓</div>
+            <h2 id="modalTitle" class="text-4xl font-bold text-white mb-2 tracking-tight">准备追捕</h2>
+            <p id="modalDesc" class="text-slate-300 mb-8 leading-relaxed">输入屏幕上出现的单词来加速警车。<br>打错字会减速，让小偷逃跑！按退格回退字符<br>拾取道路道具获得增益效果！</p>
+            <div id="finalStats" class="hidden grid grid-cols-2 gap-4 mb-8 text-left bg-slate-800/80 p-5 rounded-xl border border-slate-700">
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">最终比分</div>
+                    <div class="text-2xl text-yellow-400 font-bold" id="finalScore">0</div>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">最大马力</div>
+                    <div class="text-2xl text-green-400 font-bold" id="finalWpm">0</div>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">准确性</div>
+                    <div class="text-2xl text-blue-400 font-bold" id="finalAcc">0%</div>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">抓捕结果</div>
+                    <div class="text-2xl text-red-400 font-bold" id="finalStatus">ESCAPED</div>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">最佳组合</div>
+                    <div class="text-2xl text-amber-400 font-bold" id="finalCombo">0</div>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded">
+                    <div class="text-xs text-slate-400 uppercase">高分</div>
+                    <div class="text-2xl text-orange-400 font-bold" id="highScore">0</div>
+                </div>
+            </div>
+            <button id="startBtn" onclick="game.start()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg shadow-blue-600/40 flex items-center justify-center gap-2 group">
+                <span>启动引擎</span>
+                <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </div>
+    <div id="settingsPanel" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center">
+        <div class="glass-panel p-6 rounded-xl w-80 border border-slate-600 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">系统设置</h3>
+                <button onclick="ui.hideSettings()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm text-slate-400 mb-2 font-bold uppercase text-xs tracking-wider">Difficulty Level</label>
+                <div class="relative">
+                    <select id="difficultySelect" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none appearance-none cursor-pointer">
+                        <option value="easy">Recruit (Easy)</option>
+                        <option value="medium">Detective (Normal)</option>
+                        <option value="hard">SWAT (Hard)</option>
+                    </select>
+                    <div class="absolute right-3 top-3.5 pointer-events-none text-slate-400">
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm text-slate-400 mb-2 font-bold uppercase text-xs tracking-wider">词语类型</label>
+                <div class="relative">
+                    <select id="wordModeSelect" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white focus:border-blue-500 outline-none appearance-none cursor-pointer">
+                        <option value="en">英文单词</option>
+                        <option value="cn">中文词语</option>
+                    </select>
+                    <div class="absolute right-3 top-3.5 pointer-events-none text-slate-400">
+                        <i class="fas fa-chevron-down text-xs"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm text-slate-400 mb-3 font-bold uppercase text-xs tracking-wider">Audio System</label>
+                <div class="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+                    <span class="text-sm text-slate-300">SFX Enabled</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="soundToggle" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+            </div>
+            <div class="mb-8">
+                <label class="block text-sm text-slate-400 mb-3 font-bold uppercase text-xs tracking-wider">HP System</label>
+                <div class="flex items-center justify-between bg-slate-800 p-3 rounded-lg border border-slate-700">
+                    <span class="text-sm text-slate-300">Enable Life Points</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="hpToggle" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="ui.hideSettings()" class="px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition-colors border border-slate-600">Save & Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="skinPanel" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center">
+        <div class="glass-panel p-6 rounded-xl w-96 border border-slate-600 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">警车皮肤</h3>
+                <button onclick="ui.hideSkinSelect()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="skinList" class="grid grid-cols-3 gap-3 mb-6"></div>
+            <p class="text-xs text-slate-400 mb-4">皮肤仅改变外观，不提供属性加成</p>
+            <div class="flex justify-end">
+                <button onclick="ui.hideSkinSelect()" class="px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold transition-colors border border-slate-600">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const WORD_LISTS = {
+            easy: {
+                en: ['cat', 'dog', 'run', 'fast', 'car', 'bus', 'red', 'blue', 'sky', 'sun', 'map', 'key', 'box', 'cup', 'hat', 'law', 'cop', 'bad', 'go', 'stop','hit','fly','pen','net','log','bed','win','fit','tap'],
+                cn: ['警察','追捕','车辆','马路','红灯','加速','刹车','追踪','逃跑','信号','警车','小偷','道路','抓捕','行动']
+            },
+            medium: {
+                en: ['police', 'thief', 'chase', 'speed', 'drive', 'street', 'light', 'brake', 'engine', 'wheel', 'radio', 'signal', 'patrol', 'siren', 'arrest', 'crime', 'justice', 'guard', 'protect', 'serve','escape','pursuit','highway','ticket','sirens'],
+                cn: ['紧急出动','监控录像','红绿灯','巡逻车辆','犯罪分子','高速公路','对讲机','嫌疑人','拦停检查','证据收集']
+            },
+            hard: {
+                en: ['acceleration', 'surveillance', 'intersection', 'jurisdiction', 'apprehension', 'investigation', 'motorcycle', 'helicopter', 'undercover', 'highway', 'enforcement', 'department', 'emergency', 'dispatch', 'violation','circumstance','authorities','warrant','testimony'],
+                cn: ['刑事侦查','紧急处置','交通管制','执法记录仪','现场勘查','协同作战','通缉名单','案情分析']
+            }
+        };
+        const SKIN_LIST = [
+            {id:"default",emoji:"🚓",name:"标准警车"},
+            {id:"sport",emoji:"🏎️",name:"竞速跑车"},
+            {id:"suv",emoji:"🚙",name:"越野警车"},
+            {id:"van",emoji:"🚐",name:"厢式特警"},
+            {id:"race",emoji:"🏁",name:"赛道改装"},
+            {id:"dark",emoji:"🚔",name:"暗黑特警"}
+        ];
+        const ITEM_TYPES = [
+            {type:"boost",icon:"⚡",name:"加速冲刺",desc:"短时间移动加成"},
+            {type:"smoke",icon:"💨",name:"隐身烟雾",desc:"小偷停止逃跑"},
+            {type:"trap",icon:"🪤",name:"减速陷阱",desc:"小偷逃跑变慢"},
+            {type:"shield",icon:"🛡️",name:"防护护盾",desc:"抵挡一次伤害"},
+            {type:"heal",icon:"❤️‍🩹",name:"回血包",desc:"恢复2点血量"}
+        ];
+
+        let audioCtx;
+        const SoundFX = {
+            init(){
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            playTone: (freq, type, duration, vol = 0.1) => {
+                if (!document.getElementById('soundToggle').checked) return;
+                if(!audioCtx) SoundFX.init();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            },
+            type: () => SoundFX.playTone(800 + Math.random()*200, 'sine', 0.1, 0.05),
+            error: () => {
+                SoundFX.playTone(150, 'sawtooth', 0.3, 0.1);
+                setTimeout(() => SoundFX.playTone(100, 'sawtooth', 0.3, 0.1), 100);
+            },
+            complete: () => {
+                SoundFX.playTone(600, 'square', 0.1, 0.05);
+                setTimeout(() => SoundFX.playTone(1200, 'square', 0.2, 0.05), 100);
+            },
+            win: () => {
+                [400, 500, 600, 800, 1000].forEach((f, i) => setTimeout(() => SoundFX.playTone(f, 'triangle', 0.3, 0.1), i * 100));
+            },
+            lose: () => {
+                [400, 350, 300, 250, 200].forEach((f, i) => setTimeout(() => SoundFX.playTone(f, 'sawtooth', 0.4, 0.1), i * 150));
+            },
+            pickupItem:()=>{
+                [520,720,880].forEach((f,i)=>setTimeout(()=>SoundFX.playTone(f,'sine',0.18,0.08),i*70));
+            }
+        };
+
+        class ParticleSystem {
+            constructor() {
+                this.canvas = document.getElementById('particles');
+                this.ctx = this.canvas.getContext('2d');
+                this.particles = [];
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+            emit(x, y, color, count=8) {
+                for(let i=0; i<count; i++) {
+                    this.particles.push({
+                        x: x,
+                        y: y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1.0,
+                        color: color,
+                        size: Math.random()*3+2
+                    });
+                }
+            }
+            update() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                for(let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.035;
+                    this.ctx.globalAlpha = p.life;
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    if(p.life <= 0) this.particles.splice(i, 1);
+                }
+                this.ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class TypingGame {
+            constructor() {
+                this.state = 'MENU';
+                this.score = 0;
+                this.level = 1;
+                this.wpm = 0;
+                this.distance = 50;
+                this.currentWord = '';
+                this.typedIndex = 0;
+                this.startTime = 0;
+                this.gameStartStamp=0;
+                this.totalCharsTyped = 0;
+                this.correctCharsTyped = 0;
+                this.difficulty = localStorage.getItem('gameDiff') || 'medium';
+                this.wordMode = localStorage.getItem('wordMode') || 'en';
+                this.skinId = localStorage.getItem('policeSkin') || 'default';
+                this.particles = new ParticleSystem();
+                this.combo=0;
+                this.maxCombo=0;
+                this.maxComboMult = 2.0;
+                this.hp=5;
+                this.hasShield = false;
+                this.boostTimer = 0;
+                this.smokeTimer =0;
+                this.thiefSlowTimer=0;
+                this.roadItems = [];
+                this.itemCooldown = 0;
+                this.highScore = Number(localStorage.getItem('policeTypeHighScore')||0);
+
+                this.elScore = document.getElementById('scoreDisplay');
+                this.elWpm = document.getElementById('wpmDisplay');
+                this.elLevel = document.getElementById('levelDisplay');
+                this.elCombo = document.getElementById('comboDisplay');
+                this.elHp = document.getElementById('hpDisplay');
+                this.elBuff = document.getElementById('buffDisplay');
+                this.elTime = document.getElementById('timeDisplay');
+                this.elDistanceBar = document.getElementById('distanceBar');
+                this.elDistanceText = document.getElementById('distanceText');
+                this.elTargetText = document.getElementById('targetWordText');
+                this.elWordHint = document.getElementById('wordLengthHint');
+                this.elPolice = document.getElementById('police');
+                this.elThief = document.getElementById('thief');
+                this.elModal = document.getElementById('modalOverlay');
+                this.wordContainer = document.getElementById('targetWordContainer');
+                this.mobileInput = document.getElementById('mobileInput');
+                this.countdownEl = document.getElementById('countdownEl');
+                this.itemContainer = document.getElementById('itemContainer');
+
+                this.handleInput = this.handleInput.bind(this);
+                this.mobileInputHandler = this.mobileInputHandler.bind(this);
+                this.gameLoop = this.gameLoop.bind(this);
+
+                window.addEventListener('keydown', this.handleInput);
+                this.mobileInput.addEventListener('input', this.mobileInputHandler);
+                const diffSel = document.getElementById('difficultySelect');
+                diffSel.value = this.difficulty;
+                diffSel.addEventListener('change', (e) => {
+                    this.difficulty = e.target.value;
+                    localStorage.setItem('gameDiff',this.difficulty);
+                });
+                const wordSel = document.getElementById('wordModeSelect');
+                wordSel.value = this.wordMode;
+                wordSel.addEventListener('change',(e)=>{
+                    this.wordMode = e.target.value;
+                    localStorage.setItem('wordMode',this.wordMode);
+                });
+                document.body.addEventListener('click',()=>{
+                    if(this.state==="PLAYING" || this.state === "COUNTDOWN") this.mobileInput.focus();
+                });
+                this.applySkin();
+            }
+            applySkin(){
+                const sk = SKIN_LIST.find(s=>s.id === this.skinId) || SKIN_LIST[0];
+                this.elPolice.innerText = sk.emoji;
+            }
+            setSkin(id){
+                this.skinId = id;
+                localStorage.setItem('policeSkin',id);
+                this.applySkin();
+            }
+            mobileInputHandler(e){
+                if(this.state !== 'PLAYING') return;
+                const val = e.target.value;
+                if(val.length>0){
+                    const key = val.slice(-1);
+                    this.handleKeyChar(key);
+                    this.mobileInput.value = '';
+                }
+            }
+            start() {
+                this.state = 'COUNTDOWN';
+                this.score = 0;
+                this.level = 1;
+                this.distance = 50;
+                this.totalCharsTyped = 0;
+                this.correctCharsTyped = 0;
+                this.combo=0;
+                this.maxCombo=0;
+                this.hp = document.getElementById('hpToggle').checked ?5:999;
+                this.hasShield = false;
+                this.boostTimer =0;
+                this.smokeTimer=0;
+                this.thiefSlowTimer=0;
+                this.roadItems = [];
+                this.itemCooldown = 0;
+                this.itemContainer.innerHTML = '';
+                this.startTime = Date.now();
+                this.gameStartStamp = Date.now();
+                this.updateUI();
+                this.hideModal();
+                this.mobileInput.focus();
+                let cnt =3;
+                this.countdownEl.classList.remove('hidden');
+                this.countdownEl.innerText = cnt;
+                const timer = setInterval(()=>{
+                    cnt--;
+                    if(cnt>0){
+                        this.countdownEl.innerText = cnt;
+                    }else{
+                        clearInterval(timer);
+                        this.countdownEl.classList.add('hidden');
+                        this.state = 'PLAYING';
+                        this.nextWord();
+                        requestAnimationFrame(this.gameLoop);
+                    }
+                },1000);
+            }
+            nextWord() {
+                let list = WORD_LISTS[this.difficulty][this.wordMode];
+                if (this.level > 2 && this.difficulty !== 'hard') {
+                    list = [...list, ...WORD_LISTS.hard[this.wordMode].slice(0, 4)];
+                }
+                this.currentWord = list[Math.floor(Math.random() * list.length)];
+                this.typedIndex = 0;
+                this.renderWord();
+                this.elWordHint.innerText = `长度:${this.currentWord.length}`;
+                this.wordContainer.classList.remove('active');
+                setTimeout(() => this.wordContainer.classList.add('active'), 50);
+            }
+            renderWord() {
+                let html = '';
+                for (let i = 0; i < this.currentWord.length; i++) {
+                    const char = this.currentWord[i];
+                    let className = 'char-pending';
+                    if (i < this.typedIndex) className = 'char-correct';
+                    else if(i === this.typedIndex) className = 'char-cursor';
+                    html += `<span class="${className}">${char}</span>`;
+                }
+                this.elTargetText.innerHTML = html;
+            }
+            handleKeyChar(charInput){
+                const targetChar = this.currentWord[this.typedIndex];
+                if (charInput.toLowerCase() === targetChar.toLowerCase()) {
+                    this.typedIndex++;
+                    this.correctCharsTyped++;
+                    this.totalCharsTyped++;
+                    this.combo++;
+                    if(this.combo>this.maxCombo) this.maxCombo=this.combo;
+                    SoundFX.type();
+                    this.elPolice.style.transform = 'scale(1.1)';
+                    setTimeout(() => this.elPolice.style.transform = 'scale(1)', 100);
+                    this.elCombo.classList.add('combo-pulse');
+                    setTimeout(()=>this.elCombo.classList.remove('combo-pulse'),250);
+                    let speedBonus = this.boostTimer>0 ? 1.2 : 0;
+                    this.movePolice(0.8 + speedBonus);
+                    if (this.typedIndex === this.currentWord.length) {
+                        this.completeWord();
+                    } else {
+                        this.renderWord();
+                    }
+                } else {
+                    this.totalCharsTyped++;
+                    SoundFX.error();
+                    this.combo=0;
+                    if(document.getElementById('hpToggle').checked){
+                        if(this.hasShield){
+                            this.hasShield = false;
+                        }else{
+                            this.hp--;
+                            if(this.hp<=0){
+                                this.gameOver(false);
+                                return;
+                            }
+                        }
+                    }
+                    this.movePolice(-1.5);
+                    this.flashError();
+                    document.body.style.transform = `translateX(${Math.random()*10-5}px)`;
+                    setTimeout(() => document.body.style.transform = 'none', 50);
+                }
+                this.updateStats();
+                this.updateUI();
+            }
+            handleInput(e) {
+                if (this.state !== 'PLAYING') {
+                    if (e.key === 'Escape') this.togglePause();
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    this.togglePause();
+                    return;
+                }
+                if(e.isComposing) return;
+                if(e.key === 'Backspace'){
+                    if(this.typedIndex>0){
+                        this.typedIndex--;
+                        this.renderWord();
+                    }
+                    return;
+                }
+                if (e.key.length > 1) return;
+                e.preventDefault();
+                this.handleKeyChar(e.key);
+            }
+            completeWord() {
+                SoundFX.complete();
+                const comboMult = Math.min(1 + (this.combo * 0.08), this.maxComboMult);
+                this.score += Math.floor(this.currentWord.length * 10 * this.level * comboMult);
+                this.movePolice(8);
+                const thiefRect = this.elThief.getBoundingClientRect();
+                this.particles.emit(thiefRect.left + thiefRect.width/2, thiefRect.top + thiefRect.height/2, '#34d399',14);
+                if (this.score > this.level * 500) {
+                    this.level++;
+                    this.elLevel.parentElement.classList.add('bg-purple-500/20');
+                    setTimeout(() => this.elLevel.parentElement.classList.remove('bg-purple-500/20'), 500);
+                }
+                this.updateUI();
+                this.nextWord();
+            }
+            movePolice(amount) {
+                this.distance -= amount;
+                if (this.distance <= 0) {
+                    this.distance = 0;
+                    this.gameOver(true);
+                } else if (this.distance >= 100) {
+                    this.distance = 100;
+                    this.gameOver(false);
+                }
+                this.updatePositionVisuals();
+            }
+            updatePositionVisuals() {
+                this.elDistanceBar.style.width = `${this.distance}%`;
+                this.elDistanceText.innerText = `DIST: ${Math.floor(this.distance)}m`;
+                if(this.distance < 20) {
+                    this.elDistanceBar.className = "h-full bg-red-600 progress-bar-fill relative shadow-[0_0_15px_red]";
+                } else if (this.distance > 80) {
+                    this.elDistanceBar.className = "h-full bg-red-500 progress-bar-fill relative";
+                } else {
+                    this.elDistanceBar.className = "h-full bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 progress-bar-fill relative";
+                }
+                const pLeft = 10 + ((100 - this.distance) / 100 * 70);
+                this.elPolice.style.left = `${pLeft}%`;
+                if (this.distance < 15) {
+                    this.elPolice.style.filter = "drop-shadow(0 0 20px red)";
+                } else {
+                    this.elPolice.style.filter = "";
+                }
+            }
+            flashError() {
+                const bubble = document.querySelector('.word-bubble');
+                bubble.classList.add('border-red-500', 'bg-red-900/90');
+                bubble.classList.remove('border-slate-500', 'bg-slate-900/95');
+                setTimeout(() => {
+                    bubble.classList.remove('border-red-500', 'bg-red-900/90');
+                    bubble.classList.add('border-slate-500', 'bg-slate-900/95');
+                }, 200);
+                const rect = this.elThief.getBoundingClientRect();
+                this.particles.emit(rect.left+rect.width/2, rect.top, '#ef4444',6);
+            }
+            updateStats() {
+                const timeMins = (Date.now() - this.startTime) / 60000;
+                if (timeMins > 0) {
+                    this.wpm = Math.round((this.correctCharsTyped / 5) / timeMins);
+                }
+                this.elWpm.innerText = this.wpm;
+                this.elCombo.innerText = this.combo;
+                if(this.hp>=999){
+                    this.elHp.innerText = "∞";
+                }else{
+                    this.elHp.innerText = '❤️'.repeat(Math.max(0,this.hp));
+                }
+                const sec = Math.floor((Date.now()-this.gameStartStamp)/1000);
+                const min = String(Math.floor(sec/60)).padStart(2,'0');
+                const s = String(sec%60).padStart(2,'0');
+                this.elTime.innerText = `${min}:${s}`;
+                let buffText = "--";
+                if(this.hasShield) buffText="🛡️护盾";
+                else if(this.boostTimer>0) buffText="⚡加速";
+                else if(this.smokeTimer>0) buffText="💨隐身";
+                else if(this.thiefSlowTimer>0) buffText="🪤减速小偷";
+                this.elBuff.innerText = buffText;
+            }
+            updateUI() {
+                this.elScore.innerText = this.score;
+                this.elLevel.innerText = this.level;
+                this.updateStats();
+                this.updatePositionVisuals();
+                this.updateBuffVisual();
+            }
+            updateBuffVisual(){
+                this.elPolice.classList.remove("shield-aura","invisible-mode","boost-glow");
+                if(this.hasShield) this.elPolice.classList.add("shield-aura");
+                if(this.smokeTimer>0) this.elPolice.classList.add("invisible-mode");
+                if(this.boostTimer>0) this.elPolice.classList.add("boost-glow");
+                if(this.thiefSlowTimer>0){
+                    this.elThief.classList.add("thief-slow");
+                }else{
+                    this.elThief.classList.remove("thief-slow");
+                }
+            }
+            spawnRoadItem(){
+                const randItem = ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.length)];
+                const leftPercent = 15 + Math.random()*60;
+                const div = document.createElement('div');
+                div.className = "road-item";
+                div.innerText = randItem.icon;
+                div.style.left = leftPercent+"%";
+                div.dataset.type = randItem.type;
+                div.dataset.expire = Date.now()+4500;
+                this.itemContainer.appendChild(div);
+                this.roadItems.push({el:div,type:randItem.type,expire:Date.now()+4500,pos:leftPercent});
+            }
+            checkItemCollision(){
+                const policePos = parseFloat(this.elPolice.style.left||"10");
+                for(let i=this.roadItems.length-1;i>=0;i--){
+                    const it = this.roadItems[i];
+                    if(Date.now()>it.expire){
+                        it.el.remove();
+                        this.roadItems.splice(i,1);
+                        continue;
+                    }
+                    const diff = Math.abs(parseFloat(it.pos) - policePos);
+                    if(diff < 12){
+                        SoundFX.pickupItem();
+                        this.applyItemEffect(it.type);
+                        it.el.remove();
+                        this.roadItems.splice(i,1);
+                    }
+                }
+            }
+            applyItemEffect(type){
+                switch(type){
+                    case "boost":
+                        this.boostTimer = 2200;
+                        break;
+                    case "smoke":
+                        this.smokeTimer =2500;
+                        break;
+                    case "trap":
+                        this.thiefSlowTimer =3000;
+                        break;
+                    case "shield":
+                        this.hasShield = true;
+                        break;
+                    case "heal":
+                        if(document.getElementById('hpToggle').checked){
+                            this.hp = Math.min(5,this.hp+2);
+                        }
+                        break;
+                }
+                const rect = this.elPolice.getBoundingClientRect();
+                this.particles.emit(rect.left+rect.width/2,rect.top+rect.height/2,"#22d3ee",16);
+            }
+            gameLoop() {
+                if (this.state !== 'PLAYING') return;
+                const deltaMs = 16;
+                if(this.boostTimer>0) this.boostTimer -= deltaMs;
+                if(this.smokeTimer>0) this.smokeTimer -= deltaMs;
+                if(this.thiefSlowTimer>0) this.thiefSlowTimer -= deltaMs;
+                let baseEscape = 0.022;
+                let levelBonus = Math.min(this.level * 0.007, 0.04);
+                let escapeSpeed = baseEscape + levelBonus;
+                if(this.smokeTimer>0) escapeSpeed =0;
+                if(this.thiefSlowTimer>0) escapeSpeed *=0.4;
+                this.distance += escapeSpeed;
+                this.itemCooldown -= deltaMs;
+                if(this.itemCooldown <=0){
+                    this.spawnRoadItem();
+                    this.itemCooldown = 2200 + Math.random()*1200;
+                }
+                this.checkItemCollision();
+                this.particles.update();
+                if (this.distance >= 100) {
+                    this.distance = 100;
+                    this.gameOver(false);
+                    return;
+                }
+                this.updateUI();
+                requestAnimationFrame(this.gameLoop);
+            }
+            togglePause() {
+                if (this.state === 'PLAYING') {
+                    this.state = 'PAUSED';
+                    this.showModal('已暂停', '游戏进程已冻结', false, true);
+                } else if (this.state === 'PAUSED') {
+                    this.state = 'PLAYING';
+                    this.hideModal();
+                    this.mobileInput.focus();
+                    requestAnimationFrame(this.gameLoop);
+                }
+            }
+            gameOver(caught) {
+                this.state = 'GAMEOVER';
+                if(this.score>this.highScore){
+                    this.highScore = this.score;
+                    localStorage.setItem('policeTypeHighScore',String(this.highScore));
+                }
+                if (caught) {
+                    SoundFX.win();
+                    this.showModal('追捕成功!', `你抓住了小偷! 得分: ${this.score}`, true, false, 'CAUGHT');
+                    const rect = this.elThief.getBoundingClientRect();
+                    this.particles.emit(rect.left+rect.width/2, rect.top+rect.height/2, '#22c55e',30);
+                } else {
+                    SoundFX.lose();
+                    this.showModal('任务失败', '小偷已逃离辖区!', true, false, 'ESCAPED');
+                }
+            }
+            showModal(title, desc, showStats, isPause, statusText) {
+                this.elModal.classList.remove('hidden');
+                document.getElementById('modalTitle').innerText = title;
+                document.getElementById('modalDesc').innerText = desc;
+                const btn = document.getElementById('startBtn');
+                const stats = document.getElementById('finalStats');
+                if (isPause) {
+                    btn.innerHTML = '<span>继续行动</span><i class="fas fa-play ml-2"></i>';
+                    btn.onclick = () => this.togglePause();
+                    stats.classList.add('hidden');
+                    document.getElementById('modalIcon').innerText = '🚓';
+                    document.getElementById('modalIcon').classList.remove('animate-bounce');
+                } else {
+                    btn.innerHTML = '<span>重新部署</span><i class="fas fa-redo ml-2"></i>';
+                    btn.onclick = () => this.start();
+                    stats.classList.remove('hidden');
+                    document.getElementById('finalScore').innerText = this.score;
+                    document.getElementById('finalWpm').innerText = this.wpm;
+                    document.getElementById('finalCombo').innerText = this.maxCombo;
+                    document.getElementById('highScore').innerText = this.highScore;
+                    const acc = this.totalCharsTyped > 0
+                        ? Math.round((this.correctCharsTyped / this.totalCharsTyped) * 100)
+                        : 0;
+                    document.getElementById('finalAcc').innerText = `${acc}%`;
+                    const statusEl = document.getElementById('finalStatus');
+                    statusEl.innerText = statusText;
+                    statusEl.className = `text-2xl font-bold ${statusText === 'CAUGHT' ? 'text-green-400' : 'text-red-400'}`;
+                    const icon = document.getElementById('modalIcon');
+                    icon.innerText = statusText === 'CAUGHT' ? '🚓✨' : '💨🚗';
+                    icon.classList.add('animate-bounce');
+                }
+            }
+            hideModal() {
+                this.elModal.classList.add('hidden');
+            }
+        }
+
+        const ui = {
+            showSettings: () => {
+                document.getElementById('settingsPanel').classList.remove('hidden');
+            },
+            hideSettings: () => {
+                document.getElementById('settingsPanel').classList.add('hidden');
+            },
+            showSkinSelect:()=>{
+                const p = document.getElementById('skinPanel');
+                const listDom = document.getElementById('skinList');
+                listDom.innerHTML = '';
+                SKIN_LIST.forEach(sk=>{
+                    const div = document.createElement('div');
+                    div.className = "skin-item text-center";
+                    if(game.skinId === sk.id) div.classList.add('active');
+                    div.innerHTML = `<div class="text-4xl mb-2">${sk.emoji}</div><div class="text-xs">${sk.name}</div>`;
+                    div.onclick = ()=>{
+                        game.setSkin(sk.id);
+                        document.querySelectorAll(".skin-item").forEach(d=>d.classList.remove("active"));
+                        div.classList.add("active");
+                    };
+                    listDom.appendChild(div);
+                });
+                p.classList.remove('hidden');
+            },
+            hideSkinSelect:()=>{
+                document.getElementById('skinPanel').classList.add('hidden');
+            }
+        };
+
+        const game = new TypingGame();
+    </script>
+</body>
+</html>
